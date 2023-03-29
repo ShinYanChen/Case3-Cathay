@@ -1,0 +1,1054 @@
+---
+title: "Case3-Code"
+---
+
+
+
+
+
+```{r setup, include = FALSE}
+
+knitr::opts_chunk$set(echo = TRUE)
+
+rm(list=ls(all=T))
+
+```
+
+
+
+### Import Packages
+
+```{r, message = FALSE, warning = FALSE}
+
+library(sp)
+library(car)
+library(grid)
+library(maps)
+library(plyr)
+library(dplyr)
+library(ggmap)
+library(rgdal)
+library(tidyr)
+library(fields)
+library(GGally)
+library(ggpubr)
+library(raster)
+library(forcats)
+library(ggforce)
+library(ggplot2)
+library(mapproj)
+library(corrplot)
+library(ggthemes)
+library(maptools)
+library(spatstat)
+library(gridExtra)
+library(factoextra)
+library(FactoMineR)
+
+```
+
+
+
+### Import Data
+
+```{r , warning = FALSE }
+
+case3 = readxl::read_xlsx("D:/Academic/NTHU/NTHU Practicing Statistics/Case3/fulldata_ver10.xlsx")  
+# Sys.setlocale("LC_ALL", "C")
+data = read.csv ("D:/Academic/NTHU/NTHU Practicing Statistics/Case3/case3_df_ver2.csv")
+case3_df_ver2 = data
+
+```
+
+
+
+### EDA
+
+```{r eval=FALSE,echo = FALSE,include=FALSE}
+
+# out = which(case3$CookieUniqueVisitorTrackingId == "NULL")
+cookie = case3$CookieUniqueVisitorTrackingId
+
+sort(table(cookie),decreasing = T)[1:12]
+table_cookie = data.frame(count = as.integer(table(cookie)))
+
+tmp=ggplot(data=table_cookie)+
+  geom_histogram(aes(x=count),bins = 150,position="identity",alpha=0.7,
+                 colour = "gray", fill = "black")+
+  facet_zoom(ylim = c(0, 400))+
+  xlab("cookie count")+ylab("frequency")+
+  ggtitle("Cookie")+
+  theme_bw()
+
+# ggplot(data=filter(table_cookie,count>5),aes(x=count))+
+#   geom_histogram(bins = 120,position="identity",alpha=0.7,
+#                  colour = "gray", fill = "black")+
+#   theme_bw()
+# 
+# ggplot(data=filter(table_cookie,count<6),aes(x=count))+
+#   geom_histogram(bins = 5,position="identity",alpha=0.7,
+#                  colour = "gray", fill = "black")+
+#   theme_bw()
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+session = case3$SessionNumber
+table_session = data.frame(count = as.integer(table(session)))
+
+tmp=ggplot(data=table_session)+
+  geom_histogram(aes(x=count),bins = 150,position="identity",alpha=0.7,
+                 colour = "gray", fill = "black")+
+  facet_zoom(ylim = c(0, 400))+
+  ggtitle("session")+
+  theme_bw()
+
+# ggplot(data=filter(table_session,count>5),aes(x=count))+
+#   geom_histogram(bins = 120,position="identity",alpha=0.7,
+#                  colour = "gray", fill = "black")+
+#   theme_bw()
+# 
+# ggplot(data=filter(table_session,count<6),aes(x=count))+
+#   geom_histogram(bins = 5,position="identity",alpha=0.7,
+#                  colour = "gray", fill = "black")+
+#   theme_bw()
+  
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+PPACK_ID = case3$P_PACK_ID
+
+PPACK_ID_df = data.frame(name=names(sort(table(PPACK_ID),decreasing = T)),
+                         count = as.integer(sort(table(PPACK_ID),decreasing = T)))
+
+g1 = ggplot(data=PPACK_ID_df,aes(x=reorder(name, count),y=count))+
+      geom_bar(stat="identity")+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(face="bold", color = "black")) +
+      xlab("")
+
+# ggplot(data=filter(PPACK_ID_df,count>40000),aes(x=reorder(name, count),y=count))+
+#   geom_bar(stat="identity")+
+#   coord_flip() +
+#   theme_bw()
+
+g2 = ggplot(data=PPACK_ID_df,aes(x=reorder(name, count),y=count))+
+      geom_bar(stat="identity")+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_blank()) +
+      ylim(NA, 800)+
+      xlab("")
+
+tmp=annotate_figure(ggarrange(g1, g2),top = text_grob("PACK_ID", 
+color = "black", face = "bold", size = 10))
+
+```
+
+
+```{r eval=FALSE,echo = FALSE}
+
+TWshape = rgdal::readOGR("county_WGS84.shp")
+
+a = as.vector(TWshape@data$countyname)
+Encoding(a) = "UTF-8"  #encode chinese characters
+TWshape@data$countyname = a
+#View(TWshape)
+
+#Combine data with geographical information
+TWshape@data$id = row.names(TWshape@data)
+country_order = TWshape@data$countyname
+
+order = c()
+for (x in country_order) {
+  tmp = grep(x,regiontw$現住地縣市別)
+  order = c(order,tmp)
+}
+
+regiontw = regiontw[order,]
+TWshape@data = cbind(TWshape@data, count=regiontw$count)
+
+#View(TWshape@data)
+
+#Combine data with county polygon info
+TW_polygon = fortify(TWshape)
+
+data = join(TWshape@data, TW_polygon, by="id")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+ggplot(data)+
+  aes(long, lat,group = group,fill=count)+ 
+  xlim(c(119.5,122.5))+ 
+  coord_equal() + 
+  geom_polygon()+
+  geom_path(color="white")+ 
+  scale_fill_gradient(low = "deepskyblue1",high = "red")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+table(case3$p_buy_or_not)
+
+# out = which(case3$p_buy_or_not == "NULL")
+buyornot = case3$p_buy_or_not
+
+buyornot_df = data.frame(name=names(sort(table(buyornot),decreasing = T)),
+                         count = as.integer(sort(table(buyornot),decreasing = T)),
+                         steps=c(1,5,4,2,3))
+
+buyornot_df$name = factor(buyornot_df$name, 
+                          level = c("insure_done", "card_fillin", "order_confirm", 
+                                    "otp_verify","fillin"))
+
+length(filter(buyornot_df,name=="insure_done"))
+
+
+
+
+
+tmp=ggplot(data=buyornot_df,aes(x=name,y=count))+
+  geom_bar(stat="identity",aes(fill=as.factor(steps)))+
+  coord_flip() +
+  theme_bw()+
+  theme(legend.title = element_blank(),
+        axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black"))+
+  xlab("")+
+  ggtitle("buy_or_not")
+               
+```
+
+
+```{r eval=FALSE,echo = FALSE}
+
+# out = which(case3$BUY_CLICK_CNT == "NULL")
+shopcart = case3$BUY_CLICK_CNT
+
+table_shopcart = data.frame(count = as.integer(shopcart))
+# table_shopcart = data.frame(name=names(sort(table(shopcart),decreasing = T)),
+#                             count = as.integer(sort(table(shopcart),decreasing = T)))
+
+tmp=ggplot(data=table_shopcart)+
+  geom_histogram(aes(x=count),bins = 10,position="identity",alpha=0.7,
+                 colour = "gray", fill = "black")+
+  facet_zoom(ylim = c(0, 1500))+
+  xlab("shopping cart count")+ylab("frequency")+
+  theme_bw()+
+  ggtitle("BUY_CLICK_CNT")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+# tmp_all = data.frame(sort(table(cookie),decreasing = T))
+# colnames(tmp_all)<-list("name","count")
+# tmp1 = sort(table(cookie),decreasing = T)[1:100]
+
+#buy1~buy5
+
+
+
+index_buy = which(case3_df_ver2$Buy1 != 0 | case3_df_ver2$Buy2 != 0 | case3_df_ver2$Buy3 != 0 | 
+                    case3_df_ver2$Buy4 != 0 | case3_df_ver2$Buy5 != 0 )
+index_pick = which(as.numeric(case3_df_ver2$Shopcart) != 0)
+index_not_buy = which(case3_df_ver2$Buy1 == 0 & case3_df_ver2$Buy2 == 0 & case3_df_ver2$Buy3 == 0 & 
+                    case3_df_ver2$Buy4 == 0 & case3_df_ver2$Buy5 == 0 )
+index_not_pick = which(as.numeric(case3_df_ver2$Shopcart) == 0)
+tmp_Interesting = table(case3_df_ver2$Session[union(index_buy,index_pick)])
+tmp_notInteresting = table(case3_df_ver2$Session[intersect(index_not_buy,index_not_pick)])
+
+
+# index = list(NULL)
+# for (i in 1:length(tmp_all)) {
+#   tmp = which(case3$CookieUniqueVisitorTrackingId == names(tmp_all[i]))
+#   index[[i]] = tmp
+# }
+
+
+# index1 = list(NULL)
+# for (i in 1:length(tmp1)) {
+#   index1[[i]] = which(case3$CookieUniqueVisitorTrackingId == names(tmp1[i]))
+#   
+# }
+
+index_tar = list(NULL)
+for (i in 1:length(tmp_Interesting)) {
+  tmp = which(case3_df_ver2$Session == names(tmp_Interesting[i]))
+  index_tar[[i]] = tmp
+}
+
+index_not_tar = list(NULL)
+for (i in 1:length(tmp_notInteresting)) {
+  tmp = which(case3_df_ver2$Session == names(tmp_notInteresting[i]))
+  index_not_tar[[i]] = tmp
+}
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+attribute_cookie_tar = c()
+for (i in 1:length(index_tar)) {
+  tmp = case3_df_ver2$Attribute_Name[index_tar[[i]]]
+  attribute_cookie_tar = c(attribute_cookie_tar,unique(tmp[which(is.na(tmp) == FALSE)]))
+}
+
+
+attribute_cookie_nottar = c()
+for (i in 1:length(index_not_tar)) {
+  tmp = case3_df_ver2$Attribute_Name[index_not_tar[[i]]]
+  attribute_cookie_nottar = c(attribute_cookie_nottar,unique(tmp[which(is.na(tmp) == FALSE)]))
+}
+
+
+attribute_df1 = data.frame(name = c(
+                                    names(table(attribute_cookie_tar)),
+                                    names(table(attribute_cookie_nottar))),
+                           count = c(
+                                     as.integer(table(attribute_cookie_tar)),
+                                    as.integer(table(attribute_cookie_nottar))),
+                           group = rep(c("Interesting","Others"),
+                                       time=c(
+                                              length(table(attribute_cookie_tar)),
+                                              length(table(attribute_cookie_nottar))))) 
+
+attribute_df2 = data.frame(name = c(
+                                    names(table(attribute_cookie_tar)),
+                                    names(table(attribute_cookie_nottar))),
+                           ratio = c(
+                                     as.integer(table(attribute_cookie_tar))/length(index_tar),
+                                  as.integer(table(attribute_cookie_nottar))/length(attribute_cookie_nottar)),
+                           group = rep(c("Interesting","Others"),
+                                       time=c(
+                                              length(table(attribute_cookie_tar)),
+                                              length(table(attribute_cookie_nottar))))) 
+
+
+ggplot(data=attribute_df1,aes(x=reorder(name, count),y=count))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black")) +
+      xlab("")+
+      ggtitle("AttributionName(count)")
+
+
+
+ggplot(data=attribute_df2,aes(x=reorder(name, ratio),y=ratio,group=group))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black"))+
+      xlab("")+
+      geom_text(aes(label = round(ratio,3)),position = position_dodge(0.9) ,hjust=-0.1)+
+      ggtitle("AttributionName(ratio)")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+region_cookie_tar = c()
+for (i in 1:length(index_tar)) {
+  tmp = case3_df_ver2$Region[index_tar[[i]]]
+  region_cookie_tar = c(region_cookie_tar,unique(tmp[which(is.na(tmp) == FALSE)]))
+}
+
+region_cookie_nottar = c()
+for (i in 1:length(index_not_tar)) {
+  tmp = case3_df_ver2$Region[index_not_tar[[i]]]
+  region_cookie_nottar = c(region_cookie_nottar,unique(tmp[which(is.na(tmp) == FALSE)]))
+}
+
+
+
+region_df1 = data.frame(name = c(names(table(region_cookie_tar)),
+                                   names(table(region_cookie_nottar))),
+                           count = c(as.integer(table(region_cookie_tar)),
+                                    as.integer(table(region_cookie_nottar))),
+                           group = rep(c("Interesting","Others"),time=c(21,24))) %>% 
+  filter(!(name == '?'))
+
+region_df2 = data.frame(name = c(
+                                   names(table(region_cookie_tar)),
+                                    names(table(region_cookie_nottar))),
+                           ratio = c(
+                                     as.integer(table(region_cookie_tar))/length(region_cookie_tar),
+                                    as.integer(table(region_cookie_nottar))/length(region_cookie_nottar)),
+                           group = rep(c("Interesting","Others"),time=c(21,24))) %>% 
+  filter(!(name == '?'))
+
+
+
+ggplot(data=region_df1,aes(x=reorder(name, count),y=count))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black")) +
+      xlab("")+
+      ggtitle("Region(count)")
+
+
+
+tmp=ggplot(data=filter(region_df2 ,
+                   name %in% c("New Taipei","Taichung City","Kaohsiung","Taoyuan","Tainan",
+                               "Hsinchu","Changhua","Yunlin","Miaoli","Chiayi")),
+       aes(x=reorder(name, ratio),y=ratio,group=group))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black"))+
+      xlab("")+
+      geom_text(aes(label = round(ratio,3)),position = position_dodge(0.9) ,hjust=-0.1)+
+      ggtitle("Region(ratio)")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+Time_tar = c()
+for (i in 1:length(index_tar)) {
+  Time_tar = c(Time_tar,case3_df_ver2$AMPM[index_tar[[i]]])
+}
+
+
+Time_nottar = c()
+for (i in 1:length(index_not_tar)) {
+  Time_nottar = c(Time_nottar,case3_df_ver2$AMPM[index_not_tar[[i]]])
+}
+
+
+Time_df1 = data.frame(name = factor( c( names(table(Time_tar)),
+                                     names(table(Time_nottar))),levels = c("上午","下午")),
+                                    
+                           count = c(as.integer(table(Time_tar)),
+                                    as.integer(table(Time_nottar))),
+                           group = rep(c("Interesting","Others"),time=c(2,2))) # %>% filter(!(name == '?'))
+  
+
+Time_df2 = data.frame(name =factor( c( names(table(Time_tar)),
+                                names(table(Time_nottar))),levels = c("上午","下午")),
+                           ratio = c(as.integer(table(Time_tar))/length(Time_tar),
+                                     as.integer(table(Time_nottar))/length(Time_nottar)),
+                           group = rep(c("Interesting","Others"),time=c(2,2)))  #%>% filter(!(name == '?')) 
+ 
+
+
+
+ggplot(data=Time_df1,aes(x=name,y=count))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black")) +
+      xlab("")+
+      ggtitle("Time(count)")
+  
+
+
+ tmp= ggplot(data=Time_df2,
+       aes(x=name,y=ratio,group=group))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black"))+
+      xlab("")+
+      geom_text(aes(label = round(ratio,2)),position = position_dodge(0.9) ,hjust=-0.1)+
+      ggtitle("Time(ratio)")
+
+```
+
+
+```{r eval=FALSE,echo = FALSE}
+
+DayofWeek_tar = c()
+for (i in 1:length(index_tar)) {
+  DayofWeek_tar = c(DayofWeek_tar,case3_df_ver2$DayofWeek[index_tar[[i]]])
+}
+
+
+DayofWeek_nottar = c()
+for (i in 1:length(index_not_tar)) {
+  DayofWeek_nottar = c(DayofWeek_nottar,case3_df_ver2$DayofWeek[index_not_tar[[i]]])
+}
+
+
+DayofWeek_df1 = data.frame(name = c(names(table(DayofWeek_tar)),
+                                     names(table(DayofWeek_nottar))),
+                           count = c(as.integer(table(DayofWeek_tar)),
+                                    as.integer(table(DayofWeek_nottar))),
+                           group = rep(c("Interesting","Others"),time=c(7,7))) # %>% filter(!(name == '?'))
+  
+
+DayofWeek_df2 = data.frame(name = c( names(table(DayofWeek_tar)),
+                                names(table(DayofWeek_nottar))),
+                           ratio = c(as.integer(table(DayofWeek_tar))/length(DayofWeek_tar),
+                                     as.integer(table(DayofWeek_nottar))/length(DayofWeek_nottar)),
+                           group = rep(c("Interesting","Others"),time=c(7,7)))  #%>% filter(!(name == '?')) 
+ 
+
+
+
+ggplot(data=DayofWeek_df1,aes(x=name,y=count,group=group))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black")) +
+      xlab("")+
+  
+      ggtitle("DayofWeek(count)")
+  
+
+
+  tmp=ggplot(data=DayofWeek_df2,
+       aes(x=name,y=ratio,group=group))+
+      geom_bar(position="dodge",stat="identity",aes(fill=group))+
+      coord_flip() +
+      theme_bw()+
+      theme(axis.text.x = element_text(face="bold", color = "black"), 
+            axis.text.y = element_text(size=10,face="bold", color = "black"))+
+      xlab("")+
+      scale_x_discrete(breaks=c(1,2,3,4,5,6,7),labels =c("週日",  "週一" ,"週二","週三","週四","週五","週六"))+
+      # geom_text(aes(label=round(ratio,2)), vjust=-0.2)
+      geom_text(aes(label = round(ratio,2)),position = position_dodge(0.9) ,hjust=-0.1)+
+      ggtitle("DayofWeek(ratio)")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+Prior_Session_Time_Sum_tar =case3_df_ver2$Prior_Session_Time_Sum[unlist(index_tar)]
+Prior_Session_Time_Sum_nottar =case3_df_ver2$Prior_Session_Time_Sum[unlist(index_not_tar)]
+
+Prior_Session_Time_Sum_df1 = data.frame(count = c(as.integer(Prior_Session_Time_Sum_tar),
+                                  as.integer(Prior_Session_Time_Sum_nottar)),
+                         group = rep(c("Interesting","Others"),
+                                    time=c(length(Prior_Session_Time_Sum_tar),
+                                           length(Prior_Session_Time_Sum_nottar)))) 
+                        
+
+
+ggplot(data=Prior_Session_Time_Sum_df1)+
+  geom_histogram(aes(x=count,fill=group),bins = 11,position="dodge2",alpha=0.7)+
+  xlab("Prior_Session_Time_Sum")+ylab("count")+
+  theme_bw()+
+  facet_zoom(ylim = c(0, 1000))+
+  ggtitle("Prior_Session_Time_Sum(count)")
+
+tmp=ggplot(data=Prior_Session_Time_Sum_df1,aes(x=count,fill=group))+
+  geom_histogram(aes(y=..density..),bins = 25,position="dodge2",alpha=0.7)+
+  xlab("Prior_Session_Time_Sum")+ylab("count")+
+  geom_density(alpha=0.5,aes(col=group),bw=50)+
+  theme_bw()+
+  facet_zoom(xlim=c(0,1000),ylim = c(0, 0.001))+
+  ggtitle("Prior_Session_Time_Sum(ratio)")
+
+```
+
+```{r eval=FALSE,echo = FALSE}
+
+Session_active_time_tar =case3_df_ver2$Session_active_time[unlist(index_tar)]
+Session_active_time_nottar =case3_df_ver2$Session_active_time[unlist(index_not_tar)]
+
+Session_active_time_df1 = data.frame(count = c(as.integer(Session_active_time_tar),
+                                  as.integer(Session_active_time_nottar)),
+                         group = rep(c("Interesting","Others"),
+                                    time=c(length(Session_active_time_tar),
+                                           length(Session_active_time_nottar)))) 
+                        
+
+
+ggplot(data=Session_active_time_df1)+
+  geom_histogram(aes(x=count,fill=group),bins = 11,position="dodge2",alpha=0.7)+
+  xlab("Session_active_time")+ylab("count")+
+  theme_bw()+
+  facet_zoom(ylim = c(0, 1000))+
+  ggtitle("Session_active_time(count)")
+
+
+tmp=ggplot(data=Session_active_time_df1,aes(x=count,fill=group))+
+  geom_histogram(aes(y=..density..),bins = 20,position="dodge2",alpha=0.7)+
+  xlab("Session_active_time")+ylab("count")+
+  geom_density(alpha=0.5,aes(col=group),bw=45)+
+  theme_bw()+
+  facet_zoom(xlim=c(0,1500),ylim = c(0, 0.002))+
+  ggtitle("Session_active_time(ratio)")
+
+```
+
+
+
+### Table
+
+```{r}
+
+table( data$Y1 , data$AMPM )
+rowSums( table( data$Y1 , data$AMPM ) )
+colSums( table( data$Y1 , data$AMPM ) )
+
+table( data$Y2 , data$AMPM )
+rowSums( table( data$Y2 , data$AMPM ) )
+colSums( table( data$Y2 , data$AMPM ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$DayofWeek )
+rowSums( table( data$Y1 , data$DayofWeek ) )
+colSums( table( data$Y1 , data$DayofWeek ) )
+
+table( data$Y2 , data$DayofWeek )
+rowSums( table( data$Y2 , data$DayofWeek ) )
+colSums( table( data$Y2 , data$DayofWeek ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Device )
+rowSums( table( data$Y1 , data$Device ) )
+colSums( table( data$Y1 , data$Device ) )
+
+table( data$Y2 , data$Device )
+rowSums( table( data$Y2 , data$Device ) )
+colSums( table( data$Y2 , data$Device ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Buy5 )
+rowSums( table( data$Y1 , data$Buy5 ) )
+colSums( table( data$Y1 , data$Buy5 ) )
+
+table( data$Y2 , data$Buy5 )
+rowSums( table( data$Y2 , data$Buy5 ) )
+colSums( table( data$Y2 , data$Buy5 ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Buy4 )
+rowSums( table( data$Y1 , data$Buy4 ) )
+colSums( table( data$Y1 , data$Buy4 ) )
+
+table( data$Y2 , data$Buy4 )
+rowSums( table( data$Y2 , data$Buy4 ) )
+colSums( table( data$Y2 , data$Buy4 ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Buy3 )
+rowSums( table( data$Y1 , data$Buy3 ) )
+colSums( table( data$Y1 , data$Buy3 ) )
+
+table( data$Y2 , data$Buy3 )
+rowSums( table( data$Y2 , data$Buy3 ) )
+colSums( table( data$Y2 , data$Buy3 ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Buy2 )
+rowSums( table( data$Y1 , data$Buy2 ) )
+colSums( table( data$Y1 , data$Buy2 ) )
+
+table( data$Y2 , data$Buy2 )
+rowSums( table( data$Y2 , data$Buy2 ) )
+colSums( table( data$Y2 , data$Buy2 ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Buy1 )
+rowSums( table( data$Y1 , data$Buy1 ) )
+colSums( table( data$Y1 , data$Buy1 ) )
+
+table( data$Y2 , data$Buy1 )
+rowSums( table( data$Y2 , data$Buy1 ) )
+colSums( table( data$Y2 , data$Buy1 ) )
+
+```
+
+```{r}
+
+table( data$Y1 , data$Shopcart )
+rowSums( table( data$Y1 , data$Shopcart ) )
+colSums( table( data$Y1 , data$Shopcart ) )
+
+table( data$Y2 , data$Shopcart )
+rowSums( table( data$Y2 , data$Shopcart ) )
+colSums( table( data$Y2 , data$Shopcart ) )
+
+```
+
+```{r}
+
+boxplot(data$Session_active_time,horizontal=T)
+#median(data$Session_active_time)
+
+table( data$Y1 , ifelse(data$Session_active_time<median(data$Session_active_time),0,1) )
+rowSums( table( data$Y1 , ifelse(data$Session_active_time<median(data$Session_active_time),0,1) ) )
+colSums( table( data$Y1 , ifelse(data$Session_active_time<median(data$Session_active_time),0,1) ) )
+
+table( data$Y2 , ifelse(data$Session_active_time<median(data$Session_active_time),0,1) )
+rowSums( table( data$Y2 , ifelse(data$Session_active_time<median(data$Session_active_time),0,1) ) )
+colSums( table( data$Y2 , ifelse(data$Session_active_time<median(data$Session_active_time),0,1) ) )
+
+```
+
+```{r}
+
+boxplot(data$Session_click_count,horizontal=T)
+boxplot(data$Session_click_count[which(data$Session_click_count<1000)],horizontal=T)
+#median(data$Session_click_count)
+
+table( data$Y1 , ifelse(data$Session_click_count==0,0,1) )
+rowSums( table( data$Y1 , ifelse(data$Session_click_count==0,0,1) ) )
+colSums( table( data$Y1 , ifelse(data$Session_click_count==0,0,1) ) )
+
+table( data$Y2 , ifelse(data$Session_click_count==0,0,1) )
+rowSums( table( data$Y2 , ifelse(data$Session_click_count==0,0,1) ) )
+colSums( table( data$Y2 , ifelse(data$Session_click_count==0,0,1) ) )
+
+```
+
+```{r}
+
+boxplot(data$PageID_count,horizontal=T)
+#median(data$PageID_count)
+
+table( data$Y1 , ifelse(data$PageID_count==1,0,1) )
+rowSums( table( data$Y1 , ifelse(data$PageID_count==1,0,1) ) )
+colSums( table( data$Y1 , ifelse(data$PageID_count==1,0,1) ) )
+
+table( data$Y2 , ifelse(data$PageID_count==1,0,1) )
+rowSums( table( data$Y2 , ifelse(data$PageID_count==1,0,1) ) )
+colSums( table( data$Y2 , ifelse(data$PageID_count==1,0,1) ) )
+
+```
+
+```{r}
+
+boxplot(data$Last_Session_Time,horizontal=T)
+#median(data$Last_Session_Time)
+
+table( data$Y1 , ifelse(data$Last_Session_Time==0,0,1) )
+rowSums( table( data$Y1 , ifelse(data$Last_Session_Time==0,0,1) ) )
+colSums( table( data$Y1 , ifelse(data$Last_Session_Time==0,0,1) ) )
+
+table( data$Y2 , ifelse(data$Last_Session_Time==0,0,1) )
+rowSums( table( data$Y2 , ifelse(data$Last_Session_Time==0,0,1) ) )
+colSums( table( data$Y2 , ifelse(data$Last_Session_Time==0,0,1) ) )
+
+```
+
+```{r}
+
+boxplot(data$Prior_Session_Time_Sum,horizontal=T)
+#median(data$Prior_Session_Time_Sum)
+
+table( data$Y1 , ifelse(data$Prior_Session_Time_Sum==0,0,1) )
+rowSums( table( data$Y1 , ifelse(data$Prior_Session_Time_Sum==0,0,1) ) )
+colSums( table( data$Y1 , ifelse(data$Prior_Session_Time_Sum==0,0,1) ) )
+
+table( data$Y2 , ifelse(data$Prior_Session_Time_Sum==0,0,1) )
+rowSums( table( data$Y2 , ifelse(data$Prior_Session_Time_Sum==0,0,1) ) )
+colSums( table( data$Y2 , ifelse(data$Prior_Session_Time_Sum==0,0,1) ) )
+
+```
+
+```{r}
+
+boxplot(data$Prior_Session_Time,horizontal=T)
+#median(data$Prior_Session_Time)
+
+table( data$Y1 , ifelse(data$Prior_Session_Time==0,0,1) )
+rowSums( table( data$Y1 , ifelse(data$Prior_Session_Time==0,0,1) ) )
+colSums( table( data$Y1 , ifelse(data$Prior_Session_Time==0,0,1) ) )
+
+table( data$Y2 , ifelse(data$Prior_Session_Time==0,0,1) )
+rowSums( table( data$Y2 , ifelse(data$Prior_Session_Time==0,0,1) ) )
+colSums( table( data$Y2 , ifelse(data$Prior_Session_Time==0,0,1) ) )
+
+```
+
+
+
+```{r}
+
+table(data$Y1)
+
+table(ifelse(data$P903>0,1,0),data$Y1)
+rowSums(table(ifelse(data$P903>0,1,0),data$Y1))
+
+table(ifelse(data$P009>0,1,0),data$Y1)
+rowSums(table(ifelse(data$P009>0,1,0),data$Y1))
+
+table(ifelse(data$P008>0,1,0),data$Y1)
+rowSums(table(ifelse(data$P008>0,1,0),data$Y1))
+
+table(ifelse(data$P027>0,1,0),data$Y1)
+rowSums(table(ifelse(data$P027>0,1,0),data$Y1))
+
+table(ifelse(data$P020>0,1,0),data$Y1)
+rowSums(table(ifelse(data$P020>0,1,0),data$Y1))
+
+```
+
+```{r}
+
+table(data$Device,data$Y1)
+rowSums(table(data$Device,data$Y1))
+colSums(table(data$Device,data$Y1))
+sum(table(data$Device,data$Y1))
+
+```
+
+```{r}
+
+table(data$Region,data$Y1)
+rowSums(table(data$Region,data$Y1))
+colSums(table(data$Region,data$Y1))
+sum(table(data$Region,data$Y1))
+
+```
+
+```{r}
+
+table(data$Attribute_Name,data$Y1)
+rowSums(table(data$Attribute_Name,data$Y1))
+colSums(table(data$Attribute_Name,data$Y1))
+sum(table(data$Attribute_Name,data$Y1))
+
+```
+
+```{r}
+
+table(data$DayofWeek,data$Y1)
+rowSums(table(data$DayofWeek,data$Y1))
+colSums(table(data$DayofWeek,data$Y1))
+sum(table(data$DayofWeek,data$Y1))
+
+```
+
+```{r}
+
+table(data$AMPM,data$Y1)
+rowSums(table(data$AMPM,data$Y1))
+colSums(table(data$AMPM,data$Y1))
+sum(table(data$AMPM,data$Y1))
+
+```
+
+
+
+### Basket Analysis
+
+##### category variable
+
+```{r}
+
+pack = case3_df_ver2 %>% select(P903:P032)
+
+colnames(pack)
+general_insurance = apply(pack[,c(1,15,2,3,34,6,5,13,8,12,29,26,4,9,35)], 1, sum)
+special_insurance = apply(pack[,c(10,7,19,16,24,18,31,22,11,20,17,14,21,25,27,28,33,30,32,38,36,37,41)], 1, sum)
+
+Insurance = ifelse(general_insurance>0 & special_insurance==0,"General",
+                   ifelse(general_insurance==0 & special_insurance>0,"Special",
+                          ifelse(general_insurance>0 & special_insurance>0,"Both","Other")))
+table(Insurance)
+
+shopcart_f = ifelse(case3_df_ver2$Shopcart>0,"1","0")
+buy1_f = ifelse(case3_df_ver2$Buy1>0,"1","0")
+buy2_f = ifelse(case3_df_ver2$Buy2>0,"1","0")
+buy3_f = ifelse(case3_df_ver2$Buy3>0,"1","0")
+buy4_f = ifelse(case3_df_ver2$Buy4>0,"1","0")
+buy5_f = ifelse(case3_df_ver2$Buy5>0,"1","0")
+
+```
+
+```{r}
+
+case3_prob2_catg = case3_df_ver2 %>% select(Region:AMPM,Y1)
+case3_prob2_catg = data.frame(case3_prob2_catg,Insurance,shopcart_f,buy1_f,
+                              buy2_f,buy3_f,buy4_f,buy5_f)
+
+for (i in c(1:ncol(case3_prob2_catg))){
+  case3_prob2_catg[,i] = as.factor(case3_prob2_catg[,i])  
+}
+colnames(case3_prob2_catg)
+
+```
+
+##### Y = Y1(Binary)
+
+```{r}
+
+tmp = case3_prob2_catg[,1:7]
+trans_tmp = as(tmp, "transactions")
+rule_tmp = apriori(trans_tmp, parameter = list(support=0.005, confidence=0.005))
+output_tmp = subset(rule_tmp, subset=rhs %in% "Y1=1" & lift>1)
+
+```
+
+```{r}
+
+inspect(sort(output_tmp, by="confidence")[1:5])
+
+```
+
+## Y = Shopcart
+
+```{r}
+
+tmp = case3_prob2_catg[,c(1:5,7:8)]
+trans_tmp = as(tmp, "transactions")
+rule_tmp = apriori(trans_tmp, parameter = list(support=0.005, confidence=0.005))
+output_tmp = subset(rule_tmp, subset=rhs %in% "shopcart_f=1" & lift>1)
+
+```
+
+
+```{r}
+
+inspect(sort(output_tmp, by="confidence")[1:5])
+
+```
+
+## Y = Insure_done
+
+```{r}
+
+tmp = case3_prob2_catg[,-c(6,7,9:12)]
+trans_tmp = as(tmp, "transactions")
+rule_tmp = apriori(trans_tmp, parameter = list(support=0.001, confidence=0.001))
+output_tmp = subset(rule_tmp, subset=rhs %in% "buy5_f=1" & lift>1)
+
+```
+
+
+```{r}
+
+inspect(sort(output_tmp, by="confidence"))
+
+```
+
+# conti. variable
+
+```{r}
+
+hist(case3_df_ver2$Prior_Session_Count)
+# table(case3_df_ver2$Prior_Session_Count) ## 切在0
+
+hist(case3_df_ver2$Prior_Session_Time_Sum)
+# table(case3_df_ver2$Prior_Session_Time_Sum) ## 切在0
+
+hist(case3_df_ver2$PageID_count)
+# table(case3_df_ver2$PageID_count) ## 切在1
+
+hist(case3_df_ver2$Session_click_count[which(case3_df_ver2$Session_click_count<16)])
+# table(case3_df_ver2$Session_click_count) ## 切在0
+
+hist(case3_df_ver2$Session_active_time[which(case3_df_ver2$Session_active_time<100)])
+# median(case3_df_ver2$Session_active_time)
+# table(case3_df_ver2$Session_active_time) ## 切在20
+
+```
+
+```{r}
+
+Prior_Session_Count_cut = ifelse(case3_df_ver2$Prior_Session_Count>0,"More","Less")
+Prior_Session_Time_Sum_cut = ifelse(case3_df_ver2$Prior_Session_Time_Sum>0,"Long","Short")
+PageID_count_cut = ifelse(case3_df_ver2$PageID_count>1,"More","Less")
+Session_click_count_cut = ifelse(case3_df_ver2$Session_click_count>0,"More","Less")
+Session_active_time_cut = ifelse(case3_df_ver2$Session_active_time>20,"Long","Short")
+
+```
+
+```{r}
+
+case3_prob2_all = data.frame(case3_prob2_catg,Prior_Session_Count_cut,
+                              Prior_Session_Time_Sum_cut,PageID_count_cut,
+                              Session_click_count_cut,Session_active_time_cut)
+colnames(case3_prob2_all)
+
+```
+
+## Y = Y1(Binary)
+
+```{r}
+
+tmp = case3_prob2_all[,c(1:7,14:18)]
+trans_tmp = as(tmp, "transactions")
+rule_tmp = apriori(trans_tmp, parameter = list(support=0.005, confidence=0.005))
+output_tmp = subset(rule_tmp, subset=rhs %in% "Y1=1" & lift>1)
+
+```
+
+```{r}
+
+inspect(sort(output_tmp, by="confidence")[1:5])
+
+```
+
+## Y = Shopcart
+
+```{r}
+
+tmp = case3_prob2_all[,c(1:5,7:8,14:18)]
+trans_tmp = as(tmp, "transactions")
+rule_tmp = apriori(trans_tmp, parameter = list(support=0.005, confidence=0.005))
+output_tmp = subset(rule_tmp, subset=rhs %in% "shopcart_f=1" & lift>1)
+
+```
+
+```{r}
+inspect(sort(output_tmp, by="confidence")[1:5])
+```
+
+## Y = Insure_done
+
+```{r}
+
+tmp = case3_prob2_all[,-c(6,7,9:12)]
+trans_tmp = as(tmp, "transactions")
+rule_tmp = apriori(trans_tmp, parameter = list(support=0.001, confidence=0.001))
+output_tmp = subset(rule_tmp, subset=rhs %in% "buy5_f=1" & lift>1)
+
+```
+
+```{r}
+
+inspect(sort(output_tmp, by="confidence")[1:5])
+
+```
+
+
+
+
+
+
+
+
